@@ -4,3 +4,4 @@ linux/build/
 *.deb
 *.pkg
 *.exe
+.DS_Store
