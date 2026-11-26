@@ -7,12 +7,15 @@
 #
 # Frameworks and libraries go to lib/ beside the Geant4 libraries and Qt
 # plug-ins to plugins/, where a relocatable Qt looks for them.  References are
-# rewritten to @rpath and the changed files are signed ad hoc.
+# rewritten to @rpath and the changed files are signed ad hoc.  Running it again
+# on a tree it has already deployed changes nothing.
 
 set -eu
 
 tree=${1:?usage: deploy-libs.sh <geant4-install> [<qt-dir>]}
 qt=${2:-}
+# Absolute and without a trailing slash, as otool prints the paths inside it
+tree=$(cd "$tree" && pwd)
 lib=$tree/lib
 plugins=$tree/plugins
 
@@ -97,10 +100,24 @@ fi
 # ---------------------------------------------------------------------------
 
 # Absolute references to anything that is neither part of macOS nor a Qt
-# framework, one per line
+# framework, one per line.  A library's own install name is not a reference.
 ext_refs() {
+    own=$(otool -D "$1" 2>/dev/null | sed -n '2p')
     otool -L "$1" | sed -n '2,$s|^[[:space:]]*\(/[^ ]*\) (.*|\1|p' |
-        grep -v -e '^/usr/lib/' -e '^/System/' -e '\.framework/' || true
+        grep -v -e '^/usr/lib/' -e '^/System/' -e '\.framework/' |
+        grep -vxF "${own:-//}" || true
+}
+
+# Copy library $1 into lib/ as $2, on behalf of $3
+bundle() {
+    bundled="$bundled$2 "
+    echo "  $2 (needed by $(basename "$3"))"
+    # The real file, not the symlink Homebrew links against
+    cp -fL "$1" "$lib/$2"
+    chmod u+w "$lib/$2"
+    install_name_tool -id "@rpath/$2" "$lib/$2"
+    install_name_tool -add_rpath @loader_path "$lib/$2" 2>/dev/null || true
+    next="$next $lib/$2"
 }
 
 bundled=" "
@@ -112,15 +129,12 @@ while [ -n "$queue" ]; do
         changed=0
         for ref in $(ext_refs "$f"); do
             name=$(basename "$ref")
-            case $bundled in *" $name "*) ;; *)
-                bundled="$bundled$name "
-                echo "  $name"
-                # The real file, not the symlink Homebrew links against
-                cp -fL "$ref" "$lib/$name"
-                chmod u+w "$lib/$name"
-                install_name_tool -id "@rpath/$name" "$lib/$name"
-                install_name_tool -add_rpath @loader_path "$lib/$name" 2>/dev/null || true
-                next="$next $lib/$name" ;;
+            case $ref in
+                # Bundled already, by an earlier run: only the reference changes
+                "$lib/$name") ;;
+                # Anything else inside the tree is where it belongs
+                "$tree"/*) continue ;;
+                *) case $bundled in *" $name "*) ;; *) bundle "$ref" "$name" "$f" ;; esac ;;
             esac
             install_name_tool -change "$ref" "@rpath/$name" "$f"
             changed=1
