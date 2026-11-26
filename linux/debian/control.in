@@ -18,10 +18,10 @@ Description: Toolkit for the simulation of the passage of particles through matt
  .
  The data files are not in the package.  Installation asks which of them are
  wanted and downloads them from cern.ch, checking each against the MD5 that
- geant4-config records.  Seven of the twelve are preselected: those are the
- ones Geant4 turns into a fatal exception the moment it builds its physics
- tables, so without them nothing will run.  The rest can be added at any time
- with @PREFIX@/share/Geant4/fetch-datasets.sh.
+ geant4-config records.  All twelve are selected by default.  Seven of them
+ are required: Geant4 turns their absence into a fatal exception the moment
+ it builds its physics tables, so without them nothing will run.  Any dataset
+ left out can be added later with @PREFIX@/share/Geant4/fetch-datasets.sh.
  .
  This is not the official Geant4 distribution; it is a build with the Qt6
  user interface, packaged to install the same way on all three platforms.

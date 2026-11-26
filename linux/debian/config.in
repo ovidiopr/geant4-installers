@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Ask which datasets to download.  This is the Linux form of the Windows
-# installer's component page: the same twelve entries, the same seven
+# installer's component page: the same twelve entries, all of them
 # preselected.
 #
 # It runs before the package is unpacked, which is the whole point of the

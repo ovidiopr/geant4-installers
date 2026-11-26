@@ -5,7 +5,7 @@
 
 !macro G4_DATA_SECTIONS
 
-  Section /o "G4NDL4.7.1" SEC_G4NEUTRONHPDATA
+  Section "G4NDL4.7.1" SEC_G4NEUTRONHPDATA
     !insertmacro DownloadData "G4NDL.4.7.1" "G4NDL4.7.1" "G4NEUTRONHPDATA"
   SectionEnd
 
@@ -25,15 +25,15 @@
     !insertmacro DownloadData "G4PARTICLEXS.4.2" "G4PARTICLEXS4.2" "G4PARTICLEXSDATA"
   SectionEnd
 
-  Section /o "G4PII1.3" SEC_G4PIIDATA
+  Section "G4PII1.3" SEC_G4PIIDATA
     !insertmacro DownloadData "G4PII.1.3" "G4PII1.3" "G4PIIDATA"
   SectionEnd
 
-  Section /o "RealSurface2.2" SEC_G4REALSURFACEDATA
+  Section "RealSurface2.2" SEC_G4REALSURFACEDATA
     !insertmacro DownloadData "G4RealSurface.2.2" "RealSurface2.2" "G4REALSURFACEDATA"
   SectionEnd
 
-  Section /o "G4SAIDDATA2.0" SEC_G4SAIDXSDATA
+  Section "G4SAIDDATA2.0" SEC_G4SAIDXSDATA
     !insertmacro DownloadData "G4SAIDDATA.2.0" "G4SAIDDATA2.0" "G4SAIDXSDATA"
   SectionEnd
 
@@ -49,23 +49,23 @@
     !insertmacro DownloadData "G4ENSDFSTATE.3.0" "G4ENSDFSTATE3.0" "G4ENSDFSTATEDATA"
   SectionEnd
 
-  Section /o "G4CHANNELING2.0" SEC_G4CHANNELINGDATA
+  Section "G4CHANNELING2.0" SEC_G4CHANNELINGDATA
     !insertmacro DownloadData "G4CHANNELING.2.0" "G4CHANNELING2.0" "G4CHANNELINGDATA"
   SectionEnd
 !macroend
 
 !macro G4_DATA_DESCRIPTIONS
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4NEUTRONHPDATA} "G4NDL4.7.1: Neutron data files, with thermal cross-sections (needed by the _hp physics lists)"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4LEDATA} "G4EMLOW8.8: Data files for low-energy electromagnetic processes (required: Geant4 aborts without it)"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4LEVELGAMMADATA} "PhotonEvaporation6.1.2: Data files for photon evaporation (required: Geant4 aborts without it)"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4RADIOACTIVEDATA} "RadioactiveDecay6.1.2: Data files for radioactive decay hadronic processes (required: Geant4 aborts without it)"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4PARTICLEXSDATA} "G4PARTICLEXS4.2: Evaluated particle cross-sections on natural composition of elements (required: Geant4 aborts without it)"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4LEDATA} "G4EMLOW8.8: Data files for low-energy electromagnetic processes (required: Geant4 cannot run without it)"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4LEVELGAMMADATA} "PhotonEvaporation6.1.2: Data files for photon evaporation (required: Geant4 cannot run without it)"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4RADIOACTIVEDATA} "RadioactiveDecay6.1.2: Data files for radioactive decay hadronic processes (required: Geant4 cannot run without it)"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4PARTICLEXSDATA} "G4PARTICLEXS4.2: Evaluated particle cross-sections on natural composition of elements (required: Geant4 cannot run without it)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4PIIDATA} "G4PII1.3: Shell ionisation cross-sections (needed for PIXE)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4REALSURFACEDATA} "RealSurface2.2: Measured optical surface reflectance"
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4SAIDXSDATA} "G4SAIDDATA2.0: Evaluated cross-sections from the SAID database"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4ABLADATA} "G4ABLA3.3: Nuclear shell effects in the INCL/ABLA hadronic model (required: Geant4 aborts without it)"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4INCLDATA} "G4INCL1.3: Proton and neutron density profiles for INCL (required: Geant4 aborts without it)"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4ENSDFSTATEDATA} "G4ENSDFSTATE3.0: Nuclide properties (required: Geant4 aborts without it)"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4ABLADATA} "G4ABLA3.3: Nuclear shell effects in the INCL/ABLA hadronic model (required: Geant4 cannot run without it)"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4INCLDATA} "G4INCL1.3: Proton and neutron density profiles for INCL (required: Geant4 cannot run without it)"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4ENSDFSTATEDATA} "G4ENSDFSTATE3.0: Nuclide properties (required: Geant4 cannot run without it)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_G4CHANNELINGDATA} "G4CHANNELING2.0: Crystal channelling data (new in Geant4 11)"
 !macroend
 

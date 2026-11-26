@@ -57,7 +57,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ steps.paths.outputs.root }}
-        key: geant4-${{ inputs.version }}-qt${{ inputs.qt-version }}-${{ runner.os }}-${{ runner.arch }}-v1
+        key: geant4-${{ inputs.version }}-qt${{ inputs.qt-version }}-${{ runner.os }}-${{ runner.arch }}-v2
 
     - name: Build Geant4 (Unix)
       if: runner.os != 'Windows' && steps.cache.outputs.cache-hit != 'true'
@@ -99,8 +99,9 @@ runs:
         Invoke-WebRequest -Uri "https://cern.ch/geant4-data/releases/geant4-v$V.tar.gz" -OutFile geant4.tar.gz
         tar xzf geant4.tar.gz
         Remove-Item geant4.tar.gz
-        # GDML needs Xerces-C, which the runner does not have
-        cmake -S "geant4-v$V" -B g4build -G "Visual Studio 17 2022" -A x64 `
+        # The newest Visual Studio on the runner; GDML needs Xerces-C, which
+        # the runner does not have
+        cmake -S "geant4-v$V" -B g4build -A x64 `
           -DCMAKE_INSTALL_PREFIX="$env:PREFIX" `
           -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
           -DGEANT4_BUILD_MULTITHREADED=ON `

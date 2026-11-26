@@ -1,32 +1,27 @@
-﻿; Geant4 11.4.3 installer for Windows: the local build with Qt6.
+﻿; Geant4 installer for Windows.
 ;
-; Packages the build in D:\Ovidio\Computacion\Geant4\G4-11.4.3 (MSVC 2019, Qt
-; 6.7.3 msvc2019_64, multithreaded), after it has been installed to a staging
-; folder and Qt has been deployed into its bin with windeployqt.  The datasets
-; are NOT packaged: the ones chosen on the component page are downloaded during
-; the installation, the seven Geant4 aborts without preselected.  The Visual C++
-; runtime is installed from Microsoft's redistributable.  The environment is
-; written to the registry with EnVar: GEANT4_DATA_DIR, one variable per dataset,
-; QT_PLUGIN_PATH and, optionally, PATH.
+; Packages a Geant4 installation built with Qt6 (the result of cmake --install,
+; with Qt deployed into its bin folder by windeployqt) and downloads the
+; Geant4 datasets during the installation.  All datasets are selected by
+; default; the user can untick any of them, and the seven Geant4 cannot run
+; without are marked as required.  The Visual C++ runtime is installed from
+; Microsoft's redistributable.  The environment is written to the registry with
+; EnVar: GEANT4_DATA_DIR, one variable per dataset, QT_PLUGIN_PATH and,
+; optionally, PATH.
 ;
-; Before building, once per Geant4 build (see README-Windows.md):
-;   cmake --install D:\Ovidio\Computacion\Geant4\G4-11.4.3 --config Release
-;         --prefix D:\Ovidio\Computacion\Geant4\G4-11.4.3-stage
-;   C:\Qt\6.7.3\msvc2019_64\bin\windeployqt.exe --release --no-translations
-;         --dir <stage>\bin <stage>\bin\G4interfaces.dll <stage>\bin\G4OpenGL.dll
-;         <stage>\bin\G4ToolsSG.dll
 ; Build:
-;   makensis /INPUTCHARSET UTF8 Geant4.nsi
+;   makensis /DAPP_VERSION=<version> /DG4_TREE=<install> /DG4_BUILD_DIR=<prefix>
+;            /DVCREDIST=<vc_redist.x64.exe> Geant4.nsi
 ;
-; G4_TREE       the staging folder (bin, include, lib, share)
-; G4_BUILD_DIR  CMAKE_INSTALL_PREFIX the build was configured with, spelt as
-;               geant4-config spells it; -Post rewrites it to the install folder
-; VCREDIST      vc_redist.x64.exe matching the compiler
 ; APP_VERSION   the Geant4 version
+; G4_TREE       the Geant4 installation to package (bin, include, lib, share)
+; G4_BUILD_DIR  CMAKE_INSTALL_PREFIX the build was configured with, spelt as
+;               geant4-config spells it; it is rewritten to the install folder
+; VCREDIST      vc_redist.x64.exe matching the compiler that built Geant4 and Qt
 ;
 ; Plug-ins: inetc, untgz, EnVar (Unicode builds).  ReplaceInFile.nsh is the one
 ; beside this script.  datasets.nsh is generated from ../datasets.tsv by
-; gen-datasets-nsh.sh.  The archives are not checked against their MD5.
+; gen-datasets-nsh.sh.
 
 Unicode True
 
@@ -35,23 +30,20 @@ Unicode True
 !define APP_PUBLISHER "Ovidio Peña Rodríguez"
 !define UNINSTALL_FILENAME "uninstall.exe"
 
-; Everything below can be overridden on the makensis command line, which is
-; what the release workflow does:
-;   makensis /DAPP_VERSION=11.4.3 /DG4_BUILD_DIR=C:\g4 Geant4.nsi
+; All four are given on the makensis command line
 !ifndef APP_VERSION
-  !define APP_VERSION "11.4.3"
+  !error "Pass /DAPP_VERSION=<Geant4 version>"
 !endif
 
-; The staging folder cmake --install wrote: bin, include, lib and share.  Its
-; share\Geant4\data, which GEANT4_INSTALL_DATA=ON fills, is left out.
+; The Geant4 installation: bin, include, lib and share.  A share\Geant4\data
+; it may hold is left out; the datasets are downloaded instead.
 !ifndef G4_TREE
-  !define G4_TREE "D:\Ovidio\Computacion\Geant4\G4-11.4.3-stage"
+  !error "Pass /DG4_TREE=<Geant4 installation>"
 !endif
 
-; Microsoft's redistributable for the MSVC 2019 (v142) toolset that built both
-; Geant4 and Qt 6.7.3 msvc2019_64
+; Microsoft's redistributable for the toolset that built Geant4 and Qt
 !ifndef VCREDIST
-  !define VCREDIST "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Redist\MSVC\14.29.30133\vc_redist.x64.exe"
+  !error "Pass /DVCREDIST=<path to vc_redist.x64.exe>"
 !endif
 
 ; What makensis would otherwise only find out halfway, or not at all
@@ -59,24 +51,21 @@ Unicode True
   !error "No Geant4 in ${G4_TREE}: run cmake --install --config Release --prefix ${G4_TREE} first"
 !endif
 !if ! /FileExists "${G4_TREE}\bin\Qt6Core.dll"
-  !error "No Qt in ${G4_TREE}\bin: run windeployqt on it first (see the header of this script)"
+  !error "No Qt in ${G4_TREE}\bin: run windeployqt --dir ${G4_TREE}\bin on it first"
 !endif
 !if ! /FileExists "${G4_TREE}\bin\platforms\qwindows.dll"
   !error "No Qt platform plug-in in ${G4_TREE}\bin\platforms: run windeployqt with --dir ${G4_TREE}\bin"
 !endif
 !if ! /FileExists "${VCREDIST}"
-  !error "No ${VCREDIST}: pass /DVCREDIST=<path to vc_redist.x64.exe>"
+  !error "No ${VCREDIST}"
 !endif
 
 ; CMAKE_INSTALL_PREFIX of the build, so -Post can point the paths baked into
 ; geant4-config and Geant4Config.cmake at wherever the user installed.  It is
-; the configured prefix, not the staging one: cmake --install --prefix does not
-; regenerate those files.  Spelt as CMake writes it, with forward slashes.  It
-; is also compiled into the Geant4 DLLs as the last place to look for data,
-; which GEANT4_DATA_DIR and the per-dataset variables set below take
-; precedence over.
+; the configured prefix: cmake --install --prefix does not regenerate those
+; files.  Spelt as CMake writes it, with forward slashes.
 !ifndef G4_BUILD_DIR
-  !define G4_BUILD_DIR "C:/Program Files (x86)/Geant4"
+  !error "Pass /DG4_BUILD_DIR=<CMAKE_INSTALL_PREFIX of the build>"
 !endif
 
 ; Geant4 11 layout.  Both are relative to $INSTDIR.
@@ -376,7 +365,7 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC01} "Install files for $(^Name), with the Qt 6.7.3 runtime"
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC02} "Install Microsoft's Visual C++ 2015-2022 runtime, which Geant4 and Qt need (skipped when a newer one is there; needs administrator rights)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC03} "Add $(^Name) to 'PATH'"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecDat} "Download and unpack the data files. The seven selected by default are the ones Geant4 aborts without; the rest cost about a gigabyte more and are only needed for physics you may never reach."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecDat} "Download and unpack the data files (about 1.65 GB). All are selected by default; untick the ones you do not need. The seven marked as required are the ones Geant4 cannot run without."
   !insertmacro G4_DATA_DESCRIPTIONS
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 

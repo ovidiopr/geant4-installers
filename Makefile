@@ -19,7 +19,8 @@
 SHELL := /bin/sh
 
 GEANT4_SOURCE ?=
-# Qt6 the build was linked against, for macOS: its frameworks go into the tree
+# Qt6 the build was linked against, for macOS: its frameworks go into the tree,
+# with every other non-system library Geant4 links (Xerces-C for GDML)
 QT_DIR        ?=
 GEANT4_CONFIG ?= $(if $(GEANT4_SOURCE),$(GEANT4_SOURCE)/bin/geant4-config,$(shell command -v geant4-config))
 VERSION       ?= $(shell test -x "$(GEANT4_CONFIG)" && "$(GEANT4_CONFIG)" --version)
@@ -62,7 +63,7 @@ require_source:
 
 pkg: require_source
 	@mkdir -p $(BUILD)
-	./macos/deploy-qt.sh "$(GEANT4_SOURCE)" "$(QT_DIR)"
+	./macos/deploy-libs.sh "$(GEANT4_SOURCE)" "$(QT_DIR)"
 	./macos/build-pkg.sh --source "$(GEANT4_SOURCE)" --version "$(VERSION)" \
 	    --prefix "$(MACOS_PREFIX)" --output "$(PKG)" --build "$(BUILD)/macos"
 
@@ -72,19 +73,15 @@ deb: require_source
 	    --revision "$(REVISION)" --prefix "$(LINUX_PREFIX)" --arch "$(DEB_ARCH)" \
 	    --output "$(DEB)" --build "$(BUILD)/linux"
 
-# There is no makensis on macOS or Linux worth relying on, and the script needs
-# the Geant4 tree laid out beside it, so this prints the command rather than
-# pretending to run it.
+# makensis runs on Windows, so this prints the command rather than running it
 nsis_cmd:
-	@echo "On the Windows machine, with the Geant4 tree one level above:"
+	@echo "On Windows, after windeployqt has put Qt into <install>\\bin:"
 	@echo
-	@echo "  cd installers\\geant4\\windows"
-	@echo "  makensis Geant4.nsi"
+	@echo "  cd windows"
+	@echo "  makensis /DAPP_VERSION=<version> /DG4_TREE=<install> ^"
+	@echo "           /DG4_BUILD_DIR=<CMAKE_INSTALL_PREFIX> /DVCREDIST=<vc_redist.x64.exe> Geant4.nsi"
 	@echo
-	@echo "Requires the inetc, untgz and EnVar plugins and the ReplaceInFile"
-	@echo "and StrFunc headers, and g4_32.ico, g4_32_un.ico and g4.bmp in the"
-	@echo "same directory.  Edit QT_BUILD_DIR and G4_BUILD_DIR at the top of"
-	@echo "Geant4.nsi to match the machine the tree was built on."
+	@echo "Requires the Unicode builds of the inetc, untgz and EnVar plug-ins."
 
 datasets: require_source
 	./update-datasets.sh "$(GEANT4_CONFIG)" > datasets.tsv.new
@@ -110,7 +107,7 @@ check:
 	         macos/scripts/dataset-postinstall.in \
 	         macos/scripts/env-shell-postinstall.in \
 	         macos/scripts/env-agent-postinstall.in \
-	         linux/build-deb.sh windows/gen-datasets-nsh.sh macos/deploy-qt.sh \
+	         linux/build-deb.sh windows/gen-datasets-nsh.sh macos/deploy-libs.sh \
 	         linux/debian/config.in linux/debian/postinst.in \
 	         linux/debian/prerm.in linux/debian/postrm.in \
 	         windows/check-nsi.sh; do \

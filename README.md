@@ -1,207 +1,142 @@
 # Geant4 installers
 
-Installers for Geant4 built with the Qt6 user interface, for macOS (Apple
-silicon), Linux (`.deb`, amd64 and arm64) and Windows (x64). They are used by
-[Strata](https://github.com/ovidiopr/strata), and work for any Geant4 user.
+Ready-to-install builds of [Geant4](https://geant4.web.cern.ch/) 11.4.3 with the
+Qt6 graphical interface, for Windows, macOS and Linux.
 
-Releases are named `<Geant4 version>-<revision>`, e.g. `11.4.3-1`. Each one
-carries the installers and an archive of each install tree, for building
-against Geant4 in CI. Qt is 6.8 LTS on macOS and Windows, bundled in the
-installer; on Linux the package depends on the system Qt6 (Ubuntu 24.04,
-Debian 12 or later).
+Each installer puts in place the Geant4 libraries, headers, CMake files and
+tools, downloads the Geant4 datasets from CERN during the installation, and sets
+the environment variables Geant4 needs to find them. When it finishes, Geant4
+applications run and new ones can be built against it with CMake.
 
-All three installers behave the same way: the
-Geant4 tree goes in, a component list offers the twelve datasets with the
-seven Geant4 cannot run without preselected, those are **downloaded during the
-installation**, and the environment is set where the programs that need it
-will actually look.
+## Download
 
-That last point is the whole reason these exist. A Geant4 built from source
-installs fine and then does nothing useful, because the data files are a
-separate download and the per-dataset environment variables are left for the
-user to set. The Windows installer has done this since 10.7; the macOS and
-Linux ones now do the same.
+Get the file for your system from the
+[Releases](https://github.com/ovidiopr/geant4-installers/releases) page:
 
-| | macOS | Linux | Windows |
-| --- | --- | --- | --- |
-| format | `.pkg` (`productbuild`) | `.deb` | NSIS `.exe` |
-| dataset choice | component list, one tick box each | debconf multiselect | component page, one tick box each |
-| download | `postinstall` → `fetch-datasets.sh` | `postinst` → `fetch-datasets.sh` | `inetc` + `untgz` |
-| MD5 verified | yes | yes | no (see below) |
-| shell environment | `/etc/zprofile`, `/etc/profile`, `/etc/paths.d` | `/etc/profile.d/geant4.sh` | `EnVar` → registry |
-| GUI-app environment | login agent (`launchctl setenv`) | same as shell | same as shell |
-| default prefix | `/usr/local/geant4/<version>` | `/opt/geant4/<version>` | `%PROGRAMFILES%\Geant4\Geant4-<version>` |
+| System | File |
+|---|---|
+| Windows 10/11, 64-bit | `Install_Geant4-<version>-<revision>.exe` |
+| macOS, Apple silicon | `Install_Geant4-<version>-<revision>.pkg` |
+| Ubuntu 24.04 or later, x86-64 | `geant4_<version>-<revision>_amd64.deb` |
+| Ubuntu 24.04 or later, ARM64 | `geant4_<version>-<revision>_arm64.deb` |
 
-## Building them
+The installation needs an internet connection: the datasets (about 1.65 GB if
+all are selected) are downloaded from CERN, not carried in the installer.
 
-The **Release** workflow (Actions, run manually with the Geant4 version and
-the revision) builds Geant4 with Qt6 on the four runners, packages it, and,
-with *publish* ticked, creates the release. Locally:
+## Datasets
 
-```sh
-make pkg GEANT4_SOURCE=/usr/local/geant4/11.4.3 QT_DIR=<Qt>/macos   # on macOS
-make deb GEANT4_SOURCE=/opt/geant4/11.4.3                           # on Linux
-make nsis_cmd                                                       # prints the Windows command
-```
+All datasets are selected by default. You can untick any you do not need. The
+seven marked as required are the ones Geant4 cannot run without. The others are
+only needed by specific physics, for example high-precision neutron transport
+(G4NDL, about 1.1 GB on its own) or PIXE (G4PII).
 
-`QT_DIR` is the Qt the build was linked against; `macos/deploy-qt.sh` copies
-its frameworks and plug-ins into the tree. The Windows installer expects Qt
-in the tree's `bin`, put there with `windeployqt`, and the NSIS plug-ins
-`EnVar`, `INetC` and `untgz`, which the workflow downloads.
+| Dataset | Variable | Contents | Required |
+|---|---|---|:-:|
+| G4NDL4.7.1 | `G4NEUTRONHPDATA` | Neutron data files, with thermal cross-sections (needed by the _hp physics lists) |  |
+| G4EMLOW8.8 | `G4LEDATA` | Data files for low-energy electromagnetic processes | yes |
+| PhotonEvaporation6.1.2 | `G4LEVELGAMMADATA` | Data files for photon evaporation | yes |
+| RadioactiveDecay6.1.2 | `G4RADIOACTIVEDATA` | Data files for radioactive decay hadronic processes | yes |
+| G4PARTICLEXS4.2 | `G4PARTICLEXSDATA` | Evaluated particle cross-sections on natural composition of elements | yes |
+| G4PII1.3 | `G4PIIDATA` | Shell ionisation cross-sections (needed for PIXE) |  |
+| RealSurface2.2 | `G4REALSURFACEDATA` | Measured optical surface reflectance |  |
+| G4SAIDDATA2.0 | `G4SAIDXSDATA` | Evaluated cross-sections from the SAID database |  |
+| G4ABLA3.3 | `G4ABLADATA` | Nuclear shell effects in the INCL/ABLA hadronic model | yes |
+| G4INCL1.3 | `G4INCLDATA` | Proton and neutron density profiles for INCL | yes |
+| G4ENSDFSTATE3.0 | `G4ENSDFSTATEDATA` | Nuclide properties | yes |
+| G4CHANNELING2.0 | `G4CHANNELINGDATA` | Crystal channelling data (new in Geant4 11) |  |
 
-`share/Geant4/data` is excluded from the payload even when `GEANT4_SOURCE`
-has datasets installed, which a working Geant4 normally does. Without that the
-packages come out at 1.6 GB with the data baked in, both the opposite of what
-they are for and a contradiction of what their own description says. An empty
-`data/` goes in so the directory exists and is owned by the package.
+## Windows
 
-`GEANT4_SOURCE` is a finished Geant4 installation — what `cmake --install`
-produced. It does **not** have to have been configured for the directory the
-package installs into: Geant4 bakes its configure-time prefix into
-`geant4-config` and the CMake files, and all three installers rewrite it,
-which is what the Windows script has always done in its `-Post` section.
+1. Run `Install_Geant4-<version>-<revision>.exe`. The installer is not signed,
+   so Windows SmartScreen may stop it: choose **More info**, then **Run anyway**.
+2. Choose whether to install for yourself only or for all users. All users
+   needs administrator rights.
+3. Choose the components:
+   - **Geant4**: the libraries, headers and tools.
+   - **Visual C++ runtime**: Microsoft's runtime that Geant4 and Qt need. Leave
+     it ticked unless it is already installed.
+   - **Add to PATH**: puts the Geant4 `bin` folder on the `PATH` (unticked by
+     default).
+   - **Datasets**: all ticked; untick the ones you do not want.
+4. Choose the installation folder. The default is
+   `%LOCALAPPDATA%\Programs\Geant4\Geant4-<version>` for one user, or
+   `C:\Program Files\Geant4\Geant4-<version>` for all users.
 
-`make check` runs everything that can be checked without a Geant4 tree, a
-Debian box or a Windows box: shell syntax on every script, the shape of the
-dataset table, whether the generated NSIS include is in step with it, and a
-static check of the NSIS script (see below).
+The installer sets `GEANT4_DATA_DIR`, one variable per installed dataset, and
+`QT_PLUGIN_PATH`. A terminal or IDE opened afterwards sees them. Geant4 can be
+removed from **Settings > Apps** or with the **Uninstall** shortcut in the Start
+menu.
 
-## One table, three installers
+## macOS
 
-`datasets.tsv` is the single source of truth: directory, environment
-variable, archive name, MD5, whether it is required, and a description. The
-Unix installers read it at install time; the Windows one has it compiled in
-through `windows/datasets.nsh`, generated by `windows/gen-datasets-nsh.sh`;
-and the graphical front end, which downloads the datasets itself, has it
-compiled in through `pascal/src/ustratadatasets.pas`, generated by
-`gen-datasets-pas.sh`.
+1. Open `Install_Geant4-<version>-<revision>.pkg`. The package is not
+   notarised, so macOS may refuse to open it: go to **System Settings > Privacy &
+   Security** and choose **Open Anyway**, or Control-click the file and choose
+   **Open**.
+2. Click **Customize** on the *Installation Type* page to choose the datasets
+   (all are ticked) and the environment settings.
+3. Install. Geant4 goes to `/usr/local/geant4/<version>`.
 
-So after a Geant4 upgrade there are three things to do, in this order:
+The installer adds `/usr/local/geant4/<version>/bin` to the `PATH` and sets the
+dataset variables for login shells (zsh and bash), and also for applications
+started from the Finder or the Dock. Open a new terminal window afterwards.
 
-```sh
-./update-datasets.sh > datasets.new.tsv && mv datasets.new.tsv datasets.tsv
-windows/gen-datasets-nsh.sh > windows/datasets.nsh
-./gen-datasets-pas.sh > ../../pascal/src/ustratadatasets.pas
-```
-
-Both generated files are committed, so that building the Windows installer
-needs nothing but `makensis` and building the front end nothing but Lazarus.
-
-The archive name is carried rather than derived because it is not derivable.
-Three of the twelve carry a `G4` prefix their directory does not —
-`G4PhotonEvaporation.6.1.2.tar.gz` unpacks to `PhotonEvaporation6.1.2`, and
-the same for RadioactiveDecay and RealSurface. Composing the URL from the
-directory name gives a 404.
-
-After a Geant4 upgrade:
+To remove Geant4, run:
 
 ```sh
-make datasets GEANT4_SOURCE=/path/to/new/geant4
+sudo /usr/local/geant4/<version>/bin/uninstall-geant4.sh
 ```
 
-`update-datasets.sh` reads the table `geant4-config` carries inside itself —
-the same one `--check-datasets` verifies against — so the MD5s are Geant4's
-own, not transcribed. It keeps the `required` flags and descriptions of
-datasets it already knows and leaves new ones blank for you to fill in.
+## Linux (Ubuntu 24.04 or later)
 
-## Which seven are required, and why
-
-Geant4 raises a fatal exception the moment it builds its physics tables if any
-of these is missing, so a Geant4 without them cannot run anything at all:
-
-    G4LEDATA  G4LEVELGAMMADATA  G4RADIOACTIVEDATA  G4PARTICLEXSDATA
-    G4ABLADATA  G4INCLDATA  G4ENSDFSTATEDATA
-
-The other five matter only for physics Strata does not reach by default:
-`G4NEUTRONHPDATA` for the `_hp` lists, `G4PIIDATA` for PIXE,
-`G4REALSURFACEDATA` for optical surfaces, `G4SAIDXSDATA` for the SAID
-cross-sections, `G4CHANNELINGDATA` for channelling. Together they cost about
-a gigabyte more.
-
-In the 10.7 Windows script every dataset was `/o`, so a user who accepted the
-defaults installed a Geant4 that could not run. All three installers now
-preselect the seven.
-
-## Environment: why macOS needs two mechanisms
-
-Geant4 11's own `geant4.sh` exports only `GEANT4_DATA_DIR` and leaves the
-twelve per-dataset variables commented out. `G4FindDataDir()` copes — it tries
-the variable, then `GEANT4_DATA_DIR`, then a path compiled into the library —
-but the installers set both anyway, since anything that reads a variable
-directly needs the specific one.
-
-On Linux a desktop session descends from a shell that has read
-`/etc/profile`, so `/etc/profile.d/geant4.sh` reaches graphical programs as
-well as terminals, and one file is enough. On Windows `EnVar` writes to the
-registry, which every process sees.
-
-macOS has neither. `path_helper` reads `/etc/paths.d` but can only set `PATH`;
-there is no `/etc/profile.d`; and an application started from the Finder or
-the Dock inherits its environment from launchd, not from any shell. So the
-macOS package offers two tick boxes:
-
-* **Command-line environment** — `/etc/paths.d/geant4` for `PATH`, plus a
-  guarded block in `/etc/zprofile` and `/etc/profile` that sources the
-  generated `geant4-datasets.sh`. The markers let the uninstaller remove it
-  again without disturbing anything else in those files.
-* **Application environment** — a LaunchAgent that runs `launchctl setenv`
-  for each variable at every login. This is the one Strata's front end needs
-  when it is started from the Finder. The installer also tries to load it into
-  the session that is running, which usually works; when it cannot, the
-  variables appear at the next login.
-
-## Adding a dataset afterwards
-
-No reinstall needed. The downloader is installed alongside Geant4 and is the
-same script the installers ran:
+Install the package with `apt`, which also installs the Qt6, Xerces-C and
+OpenGL libraries it depends on:
 
 ```sh
-sudo /usr/local/geant4/11.4.3/share/Geant4/fetch-datasets.sh --all
-sudo /usr/local/geant4/11.4.3/share/Geant4/fetch-datasets.sh --only G4PIIDATA
+sudo apt install ./geant4_<version>-<revision>_amd64.deb
 ```
 
-It rewrites the environment file each time, listing only datasets that are
-really on disk — a variable pointing at a directory that is not there makes
-Geant4 fail later and less clearly than no variable at all. On macOS, run
-`share/Geant4/geant4-setenv-launchd.sh` afterwards, or log out and in, for
-applications to see the new one.
+During the installation you are asked which datasets to download. All are
+selected; press Space to untick one and Enter to continue. To install without
+questions, and with every dataset, use
 
-A download that fails never aborts the installation. A machine that is offline
-or behind a proxy that blocks `cern.ch` would otherwise end up with no Geant4
-at all rather than a Geant4 missing one dataset. Re-running the script
-installs only what is still absent.
+```sh
+sudo DEBIAN_FRONTEND=noninteractive apt install ./geant4_<version>-<revision>_amd64.deb
+```
 
-## Removing
+Geant4 goes to `/opt/geant4/<version>`. The environment is set in
+`/etc/profile.d/geant4.sh`, so log out and back in (or run
+`. /etc/profile.d/geant4.sh`) before using it. To remove Geant4, run
+`sudo apt remove geant4`. To remove the downloaded datasets as well, run
+`sudo apt purge geant4`.
 
-* macOS: `sudo /usr/local/geant4/11.4.3/bin/uninstall-geant4.sh` — a macOS
-  package has no uninstaller of its own, so this is the counterpart of the
-  Windows uninstall section. It takes out the agent, the `paths.d` entry, the
-  guarded blocks, the receipts and the tree.
-* Linux: `apt-get remove geant4` leaves the datasets in place, which makes
-  reinstalling cheap; `apt-get purge geant4` removes them. dpkg does not know
-  about the datasets — they were downloaded after unpacking — so the `postrm`
-  removes them by name rather than wiping the prefix, which may hold another
-  version.
-* Windows: Add/Remove Programs, as before.
+## Adding a dataset later
 
-## What is not verified here, and the one asymmetry
+On macOS and Linux, a dataset left out during installation can be added with
+the script installed next to Geant4, for example:
 
-The macOS and Linux downloaders check each archive against the MD5 that
-`geant4-config` records, and discard a mismatch. The Windows one does not:
-NSIS has no built-in digest and it would mean another plugin on top of
-`inetc`, `untgz` and `EnVar`. The archives come over HTTPS and a corrupt one
-fails in `untgz` instead.
+```sh
+sudo /opt/geant4/<version>/share/Geant4/fetch-datasets.sh --only G4NDL
+```
 
-`makensis` only runs on Windows, so `Geant4.nsi` cannot be compiled on the
-machine it is usually edited on. `windows/check-nsi.sh` does what can be done
-statically: unbalanced blocks, a description naming a section that does not
-exist, an `!insertmacro` with no `!macro`, a `${DEFINE}` that was never
-defined, and a dataset in the table with no section or the other way round.
-It is not a compiler — a build on Windows is still the real test.
+On macOS, use `/usr/local/geant4/<version>` instead of `/opt/geant4/<version>`.
+On Windows, run the installer again and tick the dataset.
 
-Of the three, only the Debian path has been exercised end to end: built from a
-real Geant4 11.4.3 tree, unpacked, and `postinst`/`prerm`/`postrm` run against
-a scratch root. The macOS scripts have been run directly against a scratch
-volume and the payload staged from the same real tree, but `pkgbuild` itself is
-blocked in the sandbox this was written in, so `build-pkg.sh` has only been run
-as far as `--stage-only`. Nothing on Windows has been run at all.
+## Checking the installation
+
+On macOS and Linux, in a new terminal:
+
+```sh
+geant4-config --version
+geant4-config --check-datasets
+```
+
+On Windows, open a new Command Prompt and run `set G4` to list the dataset
+variables. To build an application, point CMake at the installation,
+for example `cmake -DGeant4_DIR=/opt/geant4/<version>/lib/cmake/Geant4 ..`.
+
+## Licence
+
+The installer scripts are distributed under the GNU General Public License
+v3.0 (see [LICENSE](LICENSE)). Geant4 itself is distributed under the
+[Geant4 Software License](https://geant4.web.cern.ch/download/license).

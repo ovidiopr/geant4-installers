@@ -11,9 +11,9 @@
 # RealSurface), so deriving one from the other gives a URL that 404s.
 #
 # "required" marks the seven datasets Geant4 turns into a fatal exception the
-# moment the physics tables are built, i.e. the ones without which Strata cannot
-# start at all.  Those default to selected in every installer; the other five are
-# offered but unselected.
+# moment the physics tables are built: nothing runs without them.  It is shown
+# to the user, not used to choose: every installer selects all the datasets by
+# default, and the user can leave out any of them.
 #
 # Fields, tab separated:
 #   directory  variable  archive  md5  required  description

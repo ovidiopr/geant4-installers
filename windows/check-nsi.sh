@@ -79,6 +79,12 @@ BEGIN {
     if (line ~ /^[[:space:]]*!macroend[[:space:]]*$/)   mac--
 
     # --- definitions ---
+    # A name tested with !ifndef is supplied on the makensis command line
+    if (match(line, /^[[:space:]]*!ifndef[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*/)) {
+        s = substr(line, RSTART, RLENGTH)
+        sub(/^[[:space:]]*!ifndef[[:space:]]+/, "", s)
+        defined[s] = 1
+    }
     if (match(line, /^[[:space:]]*!define[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*/)) {
         s = substr(line, RSTART, RLENGTH)
         sub(/^[[:space:]]*!define[[:space:]]+/, "", s)

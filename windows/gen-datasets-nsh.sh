@@ -29,14 +29,12 @@ printf '!macro G4_DATA_SECTIONS\n'
 awk -F'\t' '
     /^#/ || NF < 5 { next }
     {
-        dir = $1; var = $2; archive = $3; required = $5
+        dir = $1; var = $2; archive = $3
         # The archive name the macro wants is without the .tar.gz.
         sub(/\.tar\.gz$/, "", archive)
-        # Required datasets are selected by default: a user who accepts the
-        # defaults and then cannot run anything has been failed by the
-        # installer, not by Geant4.
-        opt = (required == 1) ? "" : "/o "
-        printf "\n  Section %s\"%s\" SEC_%s\n", opt, dir, var
+        # Every dataset is selected by default; the user unticks what they do
+        # not need, and the description says which ones Geant4 cannot run without.
+        printf "\n  Section \"%s\" SEC_%s\n", dir, var
         printf "    !insertmacro DownloadData \"%s\" \"%s\" \"%s\"\n", archive, dir, var
         printf "  SectionEnd\n"
     }
@@ -51,7 +49,7 @@ awk -F'\t' '
         dir = $1; var = $2; required = $5
         desc = $6
         gsub(/"/, "$\\\"", desc)
-        tail = (required == 1) ? " (required: Geant4 aborts without it)" : ""
+        tail = (required == 1) ? " (required: Geant4 cannot run without it)" : ""
         printf "  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_%s} \"%s: %s%s\"\n", \
                var, dir, desc, tail
     }

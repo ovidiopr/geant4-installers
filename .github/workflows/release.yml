@@ -1,8 +1,15 @@
 name: Release
 
-# Builds Geant4 with Qt6 and publishes the installers as release <version>-<revision>
+# Builds Geant4 with Qt6 and attaches the installers to a release.
+#
+# Publishing a release tagged <version>-<revision> (11.4.3-1; a leading v and a
+# missing revision, meaning 1, are accepted) builds everything and uploads the
+# files to that release.  Run by hand, it builds the given version and either
+# keeps the files as workflow artifacts or creates the release itself.
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -14,7 +21,7 @@ on:
         required: true
         default: "1"
       publish:
-        description: Publish the release (otherwise only build artifacts)
+        description: Create release <version>-<revision> with the installers (otherwise only workflow artifacts)
         type: boolean
         default: false
 
@@ -23,11 +30,62 @@ permissions:
 
 env:
   QT_VERSION: "6.8.3"
+  # Unicode untgz plug-in, from conda-forge's NSIS (nsis-community ships only ANSI)
+  NSIS_CONDA_URL: https://conda.anaconda.org/conda-forge/noarch/nsis-3.13-h4c425fd_0.conda
+  NSIS_CONDA_SHA256: 133055abe38885509bb7aa2ce8da8c2f047a2da432241dbc566ae241662ee89c
 
 jobs:
+  meta:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.m.outputs.version }}
+      revision: ${{ steps.m.outputs.revision }}
+      tag: ${{ steps.m.outputs.tag }}
+      publish: ${{ steps.m.outputs.publish }}
+    steps:
+    - id: m
+      shell: bash
+      env:
+        EVENT: ${{ github.event_name }}
+        TAG: ${{ github.event.release.tag_name }}
+        IN_VERSION: ${{ inputs.version }}
+        IN_REVISION: ${{ inputs.revision }}
+        IN_PUBLISH: ${{ inputs.publish }}
+      run: |
+        set -eu
+        if [ "$EVENT" = release ]; then
+          t=${TAG#v}
+          version=${t%%-*}
+          revision=${t#"$version"}; revision=${revision#-}
+          [ -n "$revision" ] || revision=1
+          tag=$TAG
+          publish=true
+        else
+          version=$IN_VERSION
+          revision=$IN_REVISION
+          tag=$version-$revision
+          publish=$IN_PUBLISH
+        fi
+        echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' ||
+          { echo "::error::'$version' is not a Geant4 version (tag the release <version>-<revision>, e.g. 11.4.3-1)"; exit 1; }
+        echo "$revision" | grep -Eq '^[0-9]+$' ||
+          { echo "::error::'$revision' is not a revision number"; exit 1; }
+        {
+          echo "version=$version"
+          echo "revision=$revision"
+          echo "tag=$tag"
+          echo "publish=$publish"
+        } >> "$GITHUB_OUTPUT"
+        echo "Geant4 $version, revision $revision, tag $tag, publish $publish"
+
   package:
     name: Geant4 on ${{ matrix.name }}
+    needs: meta
     runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      REVISION: ${{ needs.meta.outputs.revision }}
     strategy:
       fail-fast: false
       matrix:
@@ -47,7 +105,7 @@ jobs:
     - name: Build Geant4
       uses: ./.github/actions/build-geant4
       with:
-        version: ${{ inputs.version }}
+        version: ${{ env.VERSION }}
         qt-version: ${{ env.QT_VERSION }}
 
     - name: Check the scripts
@@ -57,11 +115,11 @@ jobs:
 
     - name: Debian package
       if: runner.os == 'Linux'
-      run: make deb GEANT4_SOURCE="$GEANT4_PREFIX" REVISION="${{ inputs.revision }}"
+      run: make deb GEANT4_SOURCE="$GEANT4_PREFIX" REVISION="$REVISION"
 
     - name: macOS package
       if: runner.os == 'macOS'
-      run: make pkg GEANT4_SOURCE="$GEANT4_PREFIX" QT_DIR="$QT_ROOT_DIR" REVISION="${{ inputs.revision }}"
+      run: make pkg GEANT4_SOURCE="$GEANT4_PREFIX" QT_DIR="$QT_ROOT_DIR" REVISION="$REVISION"
 
     - name: Windows installer
       if: runner.os == 'Windows'
@@ -69,34 +127,61 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
+        $ErrorActionPreference = 'Stop'
         $g4 = $env:GEANT4_PREFIX -replace '/', '\'
+
         # Qt's DLLs and plug-ins go into the Geant4 bin folder
+        $targets = 'G4interfaces.dll', 'G4OpenGL.dll', 'G4ToolsSG.dll' |
+          ForEach-Object { "$g4\bin\$_" } | Where-Object { Test-Path $_ }
         & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --release --no-translations --no-compiler-runtime `
-          --dir "$g4\bin" "$g4\bin\G4interfaces.dll" "$g4\bin\G4OpenGL.dll"
-        $redist = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Redist\MSVC\*\vc_redist.x64.exe" |
-          Select-Object -First 1
+          --dir "$g4\bin" @targets
+        if ($LASTEXITCODE) { throw "windeployqt failed" }
+
+        # The Visual C++ redistributable of the compiler that built Geant4
+        $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+          -latest -products * -property installationPath
+        $redist = Get-ChildItem "$vs\VC\Redist\MSVC" -Recurse -Filter vc_redist.x64.exe |
+          Sort-Object FullName -Descending | Select-Object -First 1
+        if (-not $redist) { throw "No vc_redist.x64.exe under $vs\VC\Redist\MSVC" }
+        Write-Host "Redistributable: $($redist.FullName)"
+
         choco install nsis -y --no-progress
         $nsis = "C:\Program Files (x86)\NSIS"
         $env:Path += ";$nsis"
-        # The plug-ins the installer uses, from their community releases
-        foreach ($p in 'plugin-envar', 'plugin-inetc', 'plugin-untgz') {
+
+        # EnVar and INetC from their community releases
+        foreach ($p in 'plugin-envar', 'plugin-inetc') {
           gh release download -R "nsis-community/$p" -p '*.zip' -D nsis-plugins --clobber
         }
         Get-ChildItem nsis-plugins\*.zip | ForEach-Object { 7z x $_.FullName "-o$nsis" -y | Out-Null }
+        # untgz from conda-forge's NSIS package: a zip holding a zstd tarball
+        New-Item -ItemType Directory -Force nsis-conda | Out-Null
+        Invoke-WebRequest -Uri $env:NSIS_CONDA_URL -OutFile nsis-conda\nsis.conda
+        if ((Get-FileHash nsis-conda\nsis.conda -Algorithm SHA256).Hash -ne $env:NSIS_CONDA_SHA256) {
+          throw "Unexpected checksum for $env:NSIS_CONDA_URL"
+        }
+        Push-Location nsis-conda
+        tar -xf nsis.conda
+        $pkg = Get-ChildItem pkg-*.tar.zst | Select-Object -First 1
+        tar -xf $pkg.Name NSIS/Plugins/x86-unicode/untgz.dll
+        Pop-Location
+        Copy-Item nsis-conda\NSIS\Plugins\x86-unicode\untgz.dll "$nsis\Plugins\x86-unicode\" -Force
         foreach ($d in 'EnVar', 'INetC', 'untgz') {
           if (-not (Test-Path "$nsis\Plugins\x86-unicode\$d.dll")) { throw "NSIS plug-in $d not installed" }
         }
+
         New-Item -ItemType Directory -Force build | Out-Null
         Push-Location windows
-        makensis /DAPP_VERSION=${{ inputs.version }} /DG4_TREE="$g4" `
+        makensis /DAPP_VERSION=$env:VERSION /DG4_TREE="$g4" `
           /DG4_BUILD_DIR="$env:GEANT4_PREFIX" /DVCREDIST="$($redist.FullName)" Geant4.nsi
+        if ($LASTEXITCODE) { throw "makensis failed" }
         Pop-Location
-        Move-Item windows\*.exe build\Install_Geant4-${{ inputs.version }}-${{ inputs.revision }}.exe
+        Move-Item windows\*.exe "build\Install_Geant4-$env:VERSION-$env:REVISION.exe"
 
     - name: Archive the install tree
       shell: bash
       run: |
-        name="geant4-${{ inputs.version }}-${{ inputs.revision }}-${{ matrix.name }}"
+        name="geant4-$VERSION-$REVISION-${{ matrix.name }}"
         mkdir -p build
         if [ "$RUNNER_OS" = Windows ]; then
           (cd "$GEANT4_PREFIX/.." && 7z a -tzip "$GITHUB_WORKSPACE/build/$name.zip" "$(basename "$GEANT4_PREFIX")" > /dev/null)
@@ -116,8 +201,8 @@ jobs:
         if-no-files-found: error
 
   release:
-    needs: package
-    if: inputs.publish
+    needs: [meta, package]
+    if: needs.meta.outputs.publish == 'true'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/download-artifact@v4
@@ -125,9 +210,19 @@ jobs:
         path: dist
         merge-multiple: true
 
-    - uses: softprops/action-gh-release@v2
+    # A published release keeps its title and notes; only the files are added
+    - name: Upload to the release
+      if: github.event_name == 'release'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ needs.meta.outputs.tag }}
+      run: gh release upload "$TAG" dist/* --clobber -R "$GITHUB_REPOSITORY"
+
+    - name: Create the release
+      if: github.event_name == 'workflow_dispatch'
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ inputs.version }}-${{ inputs.revision }}
-        name: Geant4 ${{ inputs.version }}-${{ inputs.revision }}
-        body: Geant4 ${{ inputs.version }} with the Qt6 user interface (Qt ${{ env.QT_VERSION }} on macOS and Windows, the system Qt6 on Linux).
+        tag_name: ${{ needs.meta.outputs.tag }}
+        name: Geant4 ${{ needs.meta.outputs.tag }}
+        body: Geant4 ${{ needs.meta.outputs.version }} with the Qt6 user interface (Qt ${{ env.QT_VERSION }} on macOS and Windows, the system Qt6 on Linux).
         files: dist/*

@@ -6,8 +6,7 @@
 #
 # The result is geant4_<version>_<arch>.deb, which installs the tree into
 # /opt/geant4/<version> and then behaves like the Windows installer: a debconf
-# multiselect asks which datasets are wanted )the seven Geant4 cannot run
-# without are preselected) and the postinst downloads, verifies and extracts
+# multiselect asks which datasets are wanted (all of them are preselected) and the postinst downloads, verifies and extracts
 # them, then writes /etc/profile.d/geant4.sh so every login shell finds them.
 #
 # --source must be a finished Geant4 installation (bin/ include/ lib/ share/).
@@ -109,7 +108,7 @@ chmod 755 "$root$prefix/share/Geant4/fetch-datasets.sh"
 # Default dataset selection for the debconf question, and the full list of
 # choices, both straight out of the table.
 choices=$(awk -F'\t' '!/^#/ && NF>=5 { printf "%s%s", sep, $1; sep=", " }' "$table")
-defaults=$(awk -F'\t' '!/^#/ && NF>=5 && $5 == 1 { printf "%s%s", sep, $1; sep=", " }' "$table")
+defaults=$choices
 
 subst() {
     sed -e "s|@PREFIX@|$prefix|g" \
@@ -139,7 +138,8 @@ if command -v dpkg-deb >/dev/null 2>&1; then
     if command -v fakeroot >/dev/null 2>&1; then
         fakeroot dpkg-deb --build "$root" "$output"
     else
-        dpkg-deb --build "$root" "$output"
+        # Without fakeroot the files would belong to the build user
+        dpkg-deb --root-owner-group --build "$root" "$output"
     fi
 else
     # A .deb is an ar archive of exactly three members in a fixed order.

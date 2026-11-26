@@ -10,10 +10,12 @@ which ones you want, and they are downloaded from
 <code>cern.ch/geant4-data</code> while the installation runs, so the machine
 needs to be online at that point. Each download is checked against the MD5
 that <code>geant4-config</code> records before it is unpacked.</p>
-<p>Seven datasets are selected for you. Those are the ones Geant4 turns into a
-fatal error the moment it builds its physics tables: without them nothing will
-run, Strata included. The other five are for physics you may never reach, and
-cost roughly 1 GB more.</p>
-<p>You can change your mind later without reinstalling:</p>
-<p><code>sudo @PREFIX@/share/Geant4/fetch-datasets.sh --all</code></p>
+<p>All twelve datasets are selected. Seven of them are required: Geant4 turns
+their absence into a fatal error the moment it builds its physics tables. The
+other five are needed only for specific physics (neutron transport with the
+<code>_hp</code> physics lists, PIXE, optical surfaces, the SAID cross-sections
+and crystal channelling) and account for about 1.3 GB of the 1.65 GB download.
+Untick any you do not need.</p>
+<p>A dataset left out can be added later without reinstalling, for example:</p>
+<p><code>sudo @PREFIX@/share/Geant4/fetch-datasets.sh --only G4NDL</code></p>
 </body></html>

@@ -1,0 +1,5 @@
+# Scripts run on Linux, macOS and in Git Bash on Windows: always LF
+* text=auto eol=lf
+*.bmp binary
+*.ico binary
+*.dll binary

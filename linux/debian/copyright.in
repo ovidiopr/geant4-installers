@@ -6,8 +6,9 @@ https://geant4.web.cern.ch/license/ for the terms.
 
 This Debian package is not produced by the Geant4 Collaboration.  It packages
 a local build so that Geant4 installs and configures the same way on Linux,
-macOS and Windows.  The packaging scripts are part of Strata and carry
-Strata's licence.
+macOS and Windows.  The packaging scripts come from
+https://github.com/ovidiopr/geant4-installers and are distributed under the
+GNU General Public License, version 3.
 
 The data files the installer downloads are covered by their own terms, stated
 in the README of each dataset.

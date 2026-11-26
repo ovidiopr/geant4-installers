@@ -11,11 +11,12 @@ set by a line added to <code>/etc/zprofile</code>, which existing windows have
 already read.</p>
 <p>Applications started from the Finder or the Dock get the same variables from
 a login agent, which the installer tried to load into the current session. If
-Strata still reports missing datasets, log out and back in, or load it by hand
+an application still reports missing datasets, log out and back in, or load it by hand
 with <code>@PREFIX@/share/Geant4/geant4-setenv-launchd.sh</code>. The installer
 log says which of the two happened.</p>
 <p>If a download failed, the installation is still usable; run
-<code>sudo @PREFIX@/share/Geant4/fetch-datasets.sh</code> to retry just the
-datasets that are missing.</p>
+<code>sudo @PREFIX@/share/Geant4/fetch-datasets.sh</code> to install every
+dataset that is still missing, or add <code>--only &lt;name&gt;</code> for just
+one.</p>
 <p>To remove everything: <code>sudo @PREFIX@/bin/uninstall-geant4.sh</code></p>
 </body></html>

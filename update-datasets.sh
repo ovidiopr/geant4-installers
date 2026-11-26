@@ -16,8 +16,9 @@
 # that is new since the last run is emitted with required=0 and an empty
 # description for you to fill in.
 #
-# Two files are generated from the result and have to be regenerated with it:
-# windows/datasets.nsh and pascal/src/ustratadatasets.pas.  See README.md.
+# windows/datasets.nsh is generated from the result and has to be regenerated
+# with it: windows/gen-datasets-nsh.sh > windows/datasets.nsh (make datasets
+# does both).
 
 set -eu
 

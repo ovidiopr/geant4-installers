@@ -4,7 +4,7 @@
 #
 # A program started from the Finder or the Dock inherits its environment from
 # launchd, not from a shell, so it never sees anything /etc/zprofile exported.
-# That is the case Strata's front end is in, and it is why the Windows
+# That is the case of every graphical program, and it is why the Windows
 # installer's EnVar calls -- which write the variables where every process
 # sees them -- have no direct equivalent here.
 #

@@ -7,12 +7,13 @@ Description: Geant4 data files to download:
  downloaded from cern.ch while this package installs rather than carried
  inside it.
  .
- The seven selected by default are the ones Geant4 treats as fatal when
- missing: G4EMLOW, PhotonEvaporation, RadioactiveDecay, G4PARTICLEXS,
- G4ABLA, G4INCL and G4ENSDFSTATE.  Without them nothing will run.  The
- other five matter only for physics you may never reach -- neutron
- transport with the _hp lists, PIXE, optical surfaces, the SAID
- cross-sections and channelling -- and together cost about a gigabyte more.
+ All of them are selected by default.  Seven are required -- Geant4 treats
+ them as fatal when missing and nothing runs without them: G4EMLOW,
+ PhotonEvaporation, RadioactiveDecay, G4PARTICLEXS, G4ABLA, G4INCL and
+ G4ENSDFSTATE.  The other five are needed only for specific physics --
+ neutron transport with the _hp physics lists, PIXE, optical surfaces, the
+ SAID cross-sections and crystal channelling -- and account for about 1.3 GB
+ of the 1.65 GB download.
  .
  Selecting none is allowed; the datasets can be added later with
  @PREFIX@/share/Geant4/fetch-datasets.sh.

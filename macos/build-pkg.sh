@@ -155,7 +155,6 @@ echo "  core.pkg"
 
 choices_datasets=
 refs=
-required_sum=0
 
 while IFS='	' read -r dir var archive md5 required desc; do
     case $dir in \#*|'') continue ;; esac
@@ -178,9 +177,9 @@ while IFS='	' read -r dir var archive md5 required desc; do
         : > "$build/pkgs/data-$var.pkg"
     fi
 
-    sel=false
-    [ "$required" = "1" ] && sel=true
-    [ "$required" = "1" ] && required_sum=$((required_sum + 1))
+    # Every dataset starts selected; the description says which are required
+    sel=true
+    [ "$required" = "1" ] && desc="$desc (required: Geant4 cannot run without it)"
 
     choices_datasets="$choices_datasets
         <line choice=\"$id\"/>"
@@ -190,7 +189,7 @@ while IFS='	' read -r dir var archive md5 required desc; do
     </choice>
     <pkg-ref id=\"$id\" version=\"$version\" onConclusion=\"none\">data-$var.pkg</pkg-ref>"
 done < "$table"
-echo "  $(ls "$build/pkgs" | grep -c '^data-') dataset packages ($required_sum selected by default)"
+echo "  $(ls "$build/pkgs" | grep -c '^data-') dataset packages, all selected by default"
 
 # ---------------------------------------------------------------------------
 # Environment packages
@@ -199,9 +198,8 @@ echo "  $(ls "$build/pkgs" | grep -c '^data-') dataset packages ($required_sum s
 # Two of them, because macOS has two unrelated environments and the Windows
 # installer's single EnVar call covers both.  A login shell reads /etc/zprofile
 # or /etc/profile; an application launched from the Finder or the Dock reads
-# neither, and sees only what launchctl has been told.  Strata's front end is
-# the second case, so the agent is the one that matters here and both default
-# to selected.
+# neither, and sees only what launchctl has been told.  Graphical programs are
+# the second case, so both default to selected.
 
 for part in shell agent; do
     sdir=$build/scripts/env-$part
@@ -258,7 +256,7 @@ cat > "$build/distribution.xml" <<XML
     <pkg-ref id="$identifier.core" version="$version" onConclusion="none">core.pkg</pkg-ref>
 
     <choice id="datasets" title="Data files"
-            description="Download and install the Geant4 datasets. The seven selected by default are the ones Geant4 treats as fatal when missing; without them nothing will run."/>
+            description="Download and install the Geant4 datasets. All are selected by default; untick the ones you do not need. The seven marked as required are the ones Geant4 cannot run without."/>
 $refs
 
     <choice id="environment" title="Environment"
@@ -271,7 +269,7 @@ $refs
     <pkg-ref id="$identifier.env.shell" version="$version" onConclusion="none">env-shell.pkg</pkg-ref>
     <choice id="$identifier.env.agent" visible="true" start_selected="true"
             title="Application environment"
-            description="Install a login agent so applications started from the Finder or the Dock -- Strata among them -- also see the dataset variables.">
+            description="Install a login agent so applications started from the Finder or the Dock also see the dataset variables.">
         <pkg-ref id="$identifier.env.agent"/>
     </choice>
     <pkg-ref id="$identifier.env.agent" version="$version" onConclusion="none">env-agent.pkg</pkg-ref>

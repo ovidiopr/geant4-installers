@@ -21,8 +21,8 @@
 #     --env-dir DIR    Override where the environment files are written.
 #                      Pass "none" to write none.
 #     --table FILE     Dataset table.  Default: datasets.tsv beside this script.
-#     --all            Install every dataset in the table.
-#     --required       Install only the datasets marked required (the default).
+#     --all            Install every dataset in the table (the default).
+#     --required       Install only the seven datasets Geant4 cannot run without.
 #     --only LIST      Install exactly these, comma or space separated.  Each
 #                      entry may be the directory (G4EMLOW8.8), the variable
 #                      (G4LEDATA) or the stem (G4EMLOW).
@@ -46,7 +46,7 @@ prefix=
 data_dir=
 env_dir=
 table=$self/datasets.tsv
-selection=required
+selection=all
 only=
 base_url=https://cern.ch/geant4-data/datasets
 keep_archives=0
@@ -249,7 +249,7 @@ IFS=$oldifs
 #
 # Geant4 11's own geant4.sh exports GEANT4_DATA_DIR and leaves the twelve
 # per-dataset variables commented out.  Most code copes, but anything that
-# looks a variable up directly (Strata's front end among it) does not, so
+# looks a variable up directly does not, so
 # both are written here.  Only datasets that are actually on disk are listed,
 # which is what makes the file safe to regenerate after adding one.
 
