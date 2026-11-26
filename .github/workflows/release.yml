@@ -66,6 +66,8 @@ jobs:
     - name: Windows installer
       if: runner.os == 'Windows'
       shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
         $g4 = $env:GEANT4_PREFIX -replace '/', '\'
         # Qt's DLLs and plug-ins go into the Geant4 bin folder
@@ -74,11 +76,19 @@ jobs:
         $redist = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Redist\MSVC\*\vc_redist.x64.exe" |
           Select-Object -First 1
         choco install nsis -y --no-progress
-        $env:Path += ";C:\Program Files (x86)\NSIS"
+        $nsis = "C:\Program Files (x86)\NSIS"
+        $env:Path += ";$nsis"
+        # The plug-ins the installer uses, from their community releases
+        foreach ($p in 'plugin-envar', 'plugin-inetc', 'plugin-untgz') {
+          gh release download -R "nsis-community/$p" -p '*.zip' -D nsis-plugins --clobber
+        }
+        Get-ChildItem nsis-plugins\*.zip | ForEach-Object { 7z x $_.FullName "-o$nsis" -y | Out-Null }
+        foreach ($d in 'EnVar', 'INetC', 'untgz') {
+          if (-not (Test-Path "$nsis\Plugins\x86-unicode\$d.dll")) { throw "NSIS plug-in $d not installed" }
+        }
         New-Item -ItemType Directory -Force build | Out-Null
         Push-Location windows
-        makensis /X"!addplugindir /x86-unicode plugins\x86-unicode" `
-          /DAPP_VERSION=${{ inputs.version }} /DG4_TREE="$g4" `
+        makensis /DAPP_VERSION=${{ inputs.version }} /DG4_TREE="$g4" `
           /DG4_BUILD_DIR="$env:GEANT4_PREFIX" /DVCREDIST="$($redist.FullName)" Geant4.nsi
         Pop-Location
         Move-Item windows\*.exe build\Install_Geant4-${{ inputs.version }}-${{ inputs.revision }}.exe

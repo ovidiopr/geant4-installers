@@ -46,8 +46,8 @@ make nsis_cmd                                                       # prints the
 
 `QT_DIR` is the Qt the build was linked against; `macos/deploy-qt.sh` copies
 its frameworks and plug-ins into the tree. The Windows installer expects Qt
-in the tree's `bin`, put there with `windeployqt`, and needs the NSIS plug-ins
-`EnVar`, `INetC` and `untgz` in `windows/plugins/x86-unicode`.
+in the tree's `bin`, put there with `windeployqt`, and the NSIS plug-ins
+`EnVar`, `INetC` and `untgz`, which the workflow downloads.
 
 `share/Geant4/data` is excluded from the payload even when `GEANT4_SOURCE`
 has datasets installed, which a working Geant4 normally does. Without that the
