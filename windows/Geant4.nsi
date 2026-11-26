@@ -136,6 +136,10 @@ ${StrRep}
   !define MUI_HEADERIMAGE_BITMAP "g4.bmp"
   !define MUI_HEADERIMAGE_RIGHT
 !endif
+!if /FileExists "g4_welcome.bmp"
+  !define MUI_WELCOMEFINISHPAGE_BITMAP "g4_welcome.bmp"
+  !define MUI_UNWELCOMEFINISHPAGE_BITMAP "g4_welcome.bmp"
+!endif
 
 ; Installer pages
 !insertmacro MUI_PAGE_WELCOME
