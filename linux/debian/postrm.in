@@ -1,0 +1,41 @@
+#!/bin/sh
+#
+# The datasets are not in the package (the postinst downloaded them into the
+# prefix) so dpkg does not know about them and will leave them behind.  On
+# purge they go, along with anything else written after unpacking.  On a plain
+# remove they stay, which is what makes reinstalling cheap: the downloads are
+# not repeated.
+
+set -e
+
+root=${DPKG_ROOT:-}
+prefix=$root@PREFIX@
+
+case "$1" in
+  purge)
+    rm -f "$root/etc/profile.d/geant4.sh"
+    rm -f "$root/etc/ld.so.conf.d/geant4.conf"
+    if [ -z "$root" ] && command -v ldconfig >/dev/null 2>&1; then
+        ldconfig || true
+    fi
+
+    # Only the generated parts; never a blind rm -rf of the prefix, which may
+    # by now hold another version or something the user put there.
+    rm -rf "$prefix/share/Geant4/data"
+    rm -f  "$prefix/bin/geant4-datasets.sh" "$prefix/bin/geant4-datasets.csh"
+    rm -f  "$prefix/share/Geant4/fetch-datasets.sh" "$prefix/share/Geant4/datasets.tsv"
+    # Remove the now-empty directories, innermost first, and stop at the first
+    # one that is not empty.
+    rmdir "$prefix/share/Geant4" "$prefix/share" "$prefix" 2>/dev/null || true
+    rmdir "$(dirname "$prefix")" 2>/dev/null || true
+
+    if [ -r /usr/share/debconf/confmodule ]; then
+        . /usr/share/debconf/confmodule
+        db_purge || true
+    fi
+    ;;
+  remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+    ;;
+esac
+
+exit 0

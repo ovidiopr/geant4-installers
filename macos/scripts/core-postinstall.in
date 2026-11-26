@@ -1,0 +1,65 @@
+#!/bin/sh
+#
+# Core postinstall: make the installed tree work where it actually landed.
+#
+# Geant4 bakes its configure-time prefix into geant4-config, geant4.sh,
+# geant4.csh, the geant4make scripts and the CMake package files.  If the
+# package was built from a tree configured for somewhere else, every one of
+# those points at a directory that does not exist on this machine.  This is
+# the same repair the Windows installer makes in its -Post section with
+# ReplaceInFile, done here with sed.
+#
+# $3 is the destination volume: "/" for a normal install, a mount point when
+# the user picks another disk.
+
+set -eu
+
+volume=${3:-/}
+prefix=${volume%/}@PREFIX@
+build_prefix=@BUILD_PREFIX@
+version=@VERSION@
+
+log() { echo "geant4: $*"; }
+
+[ -d "$prefix" ] || { log "no $prefix -- nothing to configure"; exit 0; }
+
+if [ "$prefix" != "$build_prefix" ]; then
+    log "rewriting $build_prefix -> $prefix"
+    for f in \
+        "$prefix/bin/geant4-config" \
+        "$prefix/bin/geant4.sh" \
+        "$prefix/bin/geant4.csh" \
+        "$prefix/share/Geant4/geant4make/geant4make.sh" \
+        "$prefix/share/Geant4/geant4make/geant4make.csh"
+    do
+        [ -f "$f" ] || continue
+        sed -i '' "s|$build_prefix|$prefix|g" "$f" || log "could not rewrite $f"
+    done
+
+    # The CMake package files carry the prefix as well, and there are a dozen
+    # of them, so they are handled by pattern rather than by name.
+    if [ -d "$prefix/lib/cmake/Geant4" ]; then
+        find "$prefix/lib/cmake/Geant4" -name '*.cmake' -type f | while read -r f; do
+            if grep -q "$build_prefix" "$f" 2>/dev/null; then
+                sed -i '' "s|$build_prefix|$prefix|g" "$f"
+            fi
+        done
+    fi
+fi
+
+# The dataset directory must exist before any dataset package runs, and must
+# stay there even if the user selected none, so geant4-config has somewhere to
+# point.
+mkdir -p "$prefix/share/Geant4/data"
+
+# A first environment file, listing whatever is already on disk.  Each dataset
+# package rewrites it as it lands; writing it here means the file exists even
+# when no dataset was selected, so sourcing it never fails.
+if [ -x "$prefix/share/Geant4/fetch-datasets.sh" ]; then
+    "$prefix/share/Geant4/fetch-datasets.sh" \
+        --prefix "$prefix" --table "$prefix/share/Geant4/datasets.tsv" \
+        --only "" --quiet || true
+fi
+
+log "Geant4 $version configured in $prefix"
+exit 0

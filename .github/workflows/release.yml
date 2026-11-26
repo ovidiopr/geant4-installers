@@ -1,0 +1,123 @@
+name: Release
+
+# Builds Geant4 with Qt6 and publishes the installers as release <version>-<revision>
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Geant4 version
+        required: true
+        default: "11.4.3"
+      revision:
+        description: Package revision
+        required: true
+        default: "1"
+      publish:
+        description: Publish the release (otherwise only build artifacts)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  QT_VERSION: "6.8.3"
+
+jobs:
+  package:
+    name: Geant4 on ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            name: linux-amd64
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+          - os: macos-latest
+            name: macos-arm64
+          - os: windows-latest
+            name: windows-x64
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Build Geant4
+      uses: ./.github/actions/build-geant4
+      with:
+        version: ${{ inputs.version }}
+        qt-version: ${{ env.QT_VERSION }}
+
+    - name: Check the scripts
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = Windows ]; then ./windows/check-nsi.sh; else make check; fi
+
+    - name: Debian package
+      if: runner.os == 'Linux'
+      run: make deb GEANT4_SOURCE="$GEANT4_PREFIX" REVISION="${{ inputs.revision }}"
+
+    - name: macOS package
+      if: runner.os == 'macOS'
+      run: make pkg GEANT4_SOURCE="$GEANT4_PREFIX" QT_DIR="$QT_ROOT_DIR" REVISION="${{ inputs.revision }}"
+
+    - name: Windows installer
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $g4 = $env:GEANT4_PREFIX -replace '/', '\'
+        # Qt's DLLs and plug-ins go into the Geant4 bin folder
+        & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --release --no-translations --no-compiler-runtime `
+          --dir "$g4\bin" "$g4\bin\G4interfaces.dll" "$g4\bin\G4OpenGL.dll"
+        $redist = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Redist\MSVC\*\vc_redist.x64.exe" |
+          Select-Object -First 1
+        choco install nsis -y --no-progress
+        $env:Path += ";C:\Program Files (x86)\NSIS"
+        New-Item -ItemType Directory -Force build | Out-Null
+        Push-Location windows
+        makensis /X"!addplugindir /x86-unicode plugins\x86-unicode" `
+          /DAPP_VERSION=${{ inputs.version }} /DG4_TREE="$g4" `
+          /DG4_BUILD_DIR="$env:GEANT4_PREFIX" /DVCREDIST="$($redist.FullName)" Geant4.nsi
+        Pop-Location
+        Move-Item windows\*.exe build\Install_Geant4-${{ inputs.version }}-${{ inputs.revision }}.exe
+
+    - name: Archive the install tree
+      shell: bash
+      run: |
+        name="geant4-${{ inputs.version }}-${{ inputs.revision }}-${{ matrix.name }}"
+        mkdir -p build
+        if [ "$RUNNER_OS" = Windows ]; then
+          (cd "$GEANT4_PREFIX/.." && 7z a -tzip "$GITHUB_WORKSPACE/build/$name.zip" "$(basename "$GEANT4_PREFIX")" > /dev/null)
+        else
+          tar -C "$GEANT4_PREFIX/.." -czf "build/$name.tar.gz" "$(basename "$GEANT4_PREFIX")"
+        fi
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: geant4-${{ matrix.name }}
+        path: |
+          build/*.deb
+          build/*.pkg
+          build/*.exe
+          build/*.tar.gz
+          build/*.zip
+        if-no-files-found: error
+
+  release:
+    needs: package
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        path: dist
+        merge-multiple: true
+
+    - uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ inputs.version }}-${{ inputs.revision }}
+        name: Geant4 ${{ inputs.version }}-${{ inputs.revision }}
+        body: Geant4 ${{ inputs.version }} with the Qt6 user interface (Qt ${{ env.QT_VERSION }} on macOS and Windows, the system Qt6 on Linux).
+        files: dist/*

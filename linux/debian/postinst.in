@@ -1,0 +1,159 @@
+#!/bin/sh
+#
+# Make the installed tree work, download the datasets that were asked for, and
+# put the environment where every shell will find it: the three things the
+# Windows installer does with ReplaceInFile, inetc/untgz and EnVar.
+
+set -e
+
+# dpkg sets DPKG_ROOT when the package is being configured into a chroot or
+# an image; everything written outside the package's own files has to respect
+# it.  It is empty for a normal installation.
+root=${DPKG_ROOT:-}
+prefix=$root@PREFIX@
+build_prefix=@BUILD_PREFIX@
+version=@VERSION@
+profile=$root/etc/profile.d/geant4.sh
+ldconf=$root/etc/ld.so.conf.d/geant4.conf
+
+log() { echo "geant4: $*"; }
+
+case "$1" in
+  configure)
+    ;;
+  abort-upgrade|abort-remove|abort-deconfigure)
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+
+# ---------------------------------------------------------------------------
+# 1. Repair the baked-in prefix
+# ---------------------------------------------------------------------------
+
+# The paths written INTO the files are the ones the installation will have at
+# run time, i.e. @PREFIX@, not $prefix, which carries the chroot root when
+# DPKG_ROOT is set and would be wrong the moment the chroot becomes the root.
+if [ "@PREFIX@" != "$build_prefix" ]; then
+    log "rewriting $build_prefix -> @PREFIX@"
+    for f in \
+        "$prefix/bin/geant4-config" \
+        "$prefix/bin/geant4.sh" \
+        "$prefix/bin/geant4.csh" \
+        "$prefix/share/Geant4/geant4make/geant4make.sh" \
+        "$prefix/share/Geant4/geant4make/geant4make.csh"
+    do
+        [ -f "$f" ] || continue
+        sed -i "s|$build_prefix|@PREFIX@|g" "$f" || log "could not rewrite $f"
+    done
+    if [ -d "$prefix/lib/cmake/Geant4" ]; then
+        find "$prefix/lib/cmake/Geant4" -name '*.cmake' -type f \
+            -exec grep -lF "$build_prefix" {} + 2>/dev/null |
+        while read -r f; do
+            sed -i "s|$build_prefix|@PREFIX@|g" "$f"
+        done
+    fi
+fi
+
+mkdir -p "$prefix/share/Geant4/data"
+
+# ---------------------------------------------------------------------------
+# 2. The datasets
+# ---------------------------------------------------------------------------
+
+# debconf normally supplies the answer.  GEANT4_DATASETS overrides it, for
+# installations where debconf is not usable: a container build, or a machine
+# being provisioned non-interactively:
+#
+#   sudo GEANT4_DATASETS=all apt-get install ./geant4_11.4.3_amd64.deb
+#   sudo GEANT4_DATASETS=G4EMLOW8.8,G4INCL1.3 dpkg -i geant4_11.4.3_amd64.deb
+#
+# "all" and "required" are taken as such; anything else is a list of names.
+selection=${GEANT4_DATASETS:-}
+selection_is_keyword=0
+case $selection in
+    all|required) selection_is_keyword=1 ;;
+    "")
+        if [ -r /usr/share/debconf/confmodule ]; then
+            . /usr/share/debconf/confmodule
+            db_get geant4/datasets || true
+            selection=$RET
+        fi
+        ;;
+esac
+
+fetch=$prefix/share/Geant4/fetch-datasets.sh
+download_failed=0
+
+if [ ! -x "$fetch" ]; then
+    log "$fetch is missing, no datasets will be installed"
+elif [ -z "$selection" ]; then
+    log "no datasets selected"
+    # Still write the environment file, so sourcing it never fails.
+    "$fetch" --prefix "$prefix" --table "$prefix/share/Geant4/datasets.tsv" \
+             --only "" --quiet || true
+else
+    log "installing datasets: $selection"
+    if [ "$selection_is_keyword" -eq 1 ]; then
+        set -- "--$selection"
+    else
+        # debconf hands back "a, b, c"; fetch-datasets.sh takes the commas
+        # directly but not the spaces, so they go.
+        set -- --only "$(printf '%s' "$selection" | tr -d ' ')"
+    fi
+    if ! "$fetch" --prefix "$prefix" \
+                  --table "$prefix/share/Geant4/datasets.tsv" "$@"; then
+        download_failed=1
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# 3. The environment
+# ---------------------------------------------------------------------------
+#
+# /etc/profile.d is read by every login shell, which is the Linux equivalent
+# of what EnVar achieves on Windows.  Unlike macOS there is no second
+# mechanism to deal with: a desktop session on Linux is started by a shell
+# that has read /etc/profile, so graphical programs inherit the variables too.
+
+mkdir -p "$(dirname "$profile")" "$(dirname "$ldconf")"
+
+cat > "$profile" <<EOF
+# Geant4 $version.  Installed by the geant4 package; removed when it is purged.
+[ -r "@PREFIX@/bin/geant4-datasets.sh" ] && . "@PREFIX@/bin/geant4-datasets.sh"
+case ":\$PATH:" in
+    *":@PREFIX@/bin:"*) ;;
+    *) PATH="@PREFIX@/bin:\$PATH"; export PATH ;;
+esac
+EOF
+chmod 644 "$profile"
+log "wrote $profile"
+
+# The libraries are outside the loader's default search path.
+echo "@PREFIX@/lib" > "$ldconf"
+chmod 644 "$ldconf"
+if [ -z "$root" ] && command -v ldconfig >/dev/null 2>&1; then
+    ldconfig || log "ldconfig failed"
+fi
+log "wrote $ldconf"
+
+if [ "$download_failed" -eq 1 ] && [ -r /usr/share/debconf/confmodule ]; then
+    db_input critical geant4/download-failed || true
+    db_go || true
+fi
+
+# fetch-datasets.sh writes the environment file with the paths it was handed,
+# which under DPKG_ROOT carry the chroot prefix.  The file is read at run time,
+# when the chroot is the root, so the prefix has to come back off.
+if [ -n "$root" ]; then
+    for f in "$prefix/bin/geant4-datasets.sh" "$prefix/bin/geant4-datasets.csh"; do
+        [ -f "$f" ] && sed -i "s|$root@PREFIX@|@PREFIX@|g" "$f"
+    done
+fi
+
+log "Geant4 $version is installed in @PREFIX@"
+log "open a new shell, or run '. /etc/profile.d/geant4.sh', to pick up the environment"
+
+exit 0

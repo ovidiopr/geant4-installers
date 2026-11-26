@@ -1,0 +1,123 @@
+name: Build Geant4
+description: Build Geant4 with Qt6 from source, or restore it from the cache
+
+inputs:
+  version:
+    description: Geant4 version, as in the release tarball name
+    required: true
+  qt-version:
+    description: Qt version for macOS and Windows (Linux uses the system Qt6)
+    required: false
+    default: "6.8.3"
+
+outputs:
+  prefix:
+    description: The install prefix
+    value: ${{ steps.paths.outputs.prefix }}
+
+runs:
+  using: composite
+  steps:
+
+    - name: Resolve paths
+      id: paths
+      shell: bash
+      run: |
+        root=$HOME/geant4
+        # Windows paths with forward slashes, which both CMake and bash take
+        [ "$RUNNER_OS" = Windows ] && root=$(cygpath -m "$root")
+        echo "prefix=$root/${{ inputs.version }}" >> $GITHUB_OUTPUT
+        echo "root=$root" >> $GITHUB_OUTPUT
+
+    - name: Install Qt (macOS, Windows)
+      if: runner.os != 'Linux'
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: ${{ inputs.qt-version }}
+        arch: ${{ runner.os == 'Windows' && 'win64_msvc2022_64' || '' }}
+        cache: true
+
+    - name: Install build dependencies (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake ninja-build \
+          libexpat1-dev zlib1g-dev libxerces-c-dev \
+          libgl1-mesa-dev libglu1-mesa-dev libxmu-dev libxi-dev libx11-dev libxt-dev \
+          qt6-base-dev libqt6opengl6-dev
+
+    - name: Install build dependencies (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: brew install ninja xerces-c || true
+
+    - name: Restore Geant4 from cache
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.paths.outputs.root }}
+        key: geant4-${{ inputs.version }}-qt${{ inputs.qt-version }}-${{ runner.os }}-${{ runner.arch }}-v1
+
+    - name: Build Geant4 (Unix)
+      if: runner.os != 'Windows' && steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        PREFIX: ${{ steps.paths.outputs.prefix }}
+      run: |
+        set -eu
+        V="${{ inputs.version }}"
+        curl -sSL -f --retry 3 -o geant4.tar.gz "https://cern.ch/geant4-data/releases/geant4-v${V}.tar.gz"
+        tar xzf geant4.tar.gz && rm -f geant4.tar.gz
+        X11=OFF
+        [ "${{ runner.os }}" = "Linux" ] && X11=ON
+        cmake -S "geant4-v${V}" -B g4build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+          -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR:-}" \
+          -DGEANT4_BUILD_MULTITHREADED=ON \
+          -DGEANT4_INSTALL_DATA=OFF \
+          -DGEANT4_USE_SYSTEM_EXPAT=ON \
+          -DGEANT4_USE_SYSTEM_ZLIB=ON \
+          -DGEANT4_USE_GDML=ON \
+          -DGEANT4_USE_QT=ON \
+          -DGEANT4_USE_QT_QT6=ON \
+          -DGEANT4_USE_OPENGL_X11=$X11 \
+          -DBUILD_SHARED_LIBS=ON \
+          -DBUILD_STATIC_LIBS=OFF
+        cmake --build g4build --parallel "$(getconf _NPROCESSORS_ONLN)"
+        cmake --install g4build
+        rm -rf g4build "geant4-v${V}"
+
+    - name: Build Geant4 (Windows)
+      if: runner.os == 'Windows' && steps.cache.outputs.cache-hit != 'true'
+      shell: pwsh
+      env:
+        PREFIX: ${{ steps.paths.outputs.prefix }}
+      run: |
+        $V = "${{ inputs.version }}"
+        Invoke-WebRequest -Uri "https://cern.ch/geant4-data/releases/geant4-v$V.tar.gz" -OutFile geant4.tar.gz
+        tar xzf geant4.tar.gz
+        Remove-Item geant4.tar.gz
+        # GDML needs Xerces-C, which the runner does not have
+        cmake -S "geant4-v$V" -B g4build -G "Visual Studio 17 2022" -A x64 `
+          -DCMAKE_INSTALL_PREFIX="$env:PREFIX" `
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
+          -DGEANT4_BUILD_MULTITHREADED=ON `
+          -DGEANT4_INSTALL_DATA=OFF `
+          -DGEANT4_USE_GDML=OFF `
+          -DGEANT4_USE_QT=ON `
+          -DGEANT4_USE_QT_QT6=ON `
+          -DBUILD_SHARED_LIBS=ON `
+          -DBUILD_STATIC_LIBS=OFF
+        cmake --build g4build --config Release --parallel
+        cmake --install g4build --config Release
+        Remove-Item -Recurse -Force g4build, "geant4-v$V"
+
+    - name: Report
+      shell: bash
+      env:
+        PREFIX: ${{ steps.paths.outputs.prefix }}
+      run: |
+        echo "GEANT4_PREFIX=$PREFIX" >> $GITHUB_ENV
+        ls "$PREFIX"

@@ -1,0 +1,30 @@
+#!/bin/sh
+#
+# One dataset.  Payload-free: the whole package is this script, which downloads
+# @DATASET@, checks its MD5 and extracts it, then rewrites the environment file
+# so it lists everything present so far.
+#
+# This deliberately does not abort the installation when the download fails.
+# A machine that is offline, or behind a proxy that blocks cern.ch, would
+# otherwise end up with no Geant4 at all rather than a Geant4 missing one
+# dataset, and the datasets can be added afterwards with the same script:
+#
+#   sudo @PREFIX@/share/Geant4/fetch-datasets.sh --only @DATASET@
+
+set -u
+
+volume=${3:-/}
+prefix=${volume%/}@PREFIX@
+fetch=$prefix/share/Geant4/fetch-datasets.sh
+
+if [ ! -x "$fetch" ]; then
+    echo "geant4: $fetch is missing -- cannot install @DATASET@" >&2
+    exit 0
+fi
+
+"$fetch" --prefix "$prefix" \
+         --table "$prefix/share/Geant4/datasets.tsv" \
+         --only "@DATASET@" \
+    || echo "geant4: @DATASET@ was not installed; see the messages above" >&2
+
+exit 0

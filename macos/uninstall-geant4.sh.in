@@ -1,0 +1,89 @@
+#!/bin/sh
+#
+# Remove Geant4 @VERSION@ and everything the installer put outside its prefix.
+#
+#   sudo @PREFIX@/bin/uninstall-geant4.sh [--yes]
+#
+# macOS packages have no uninstaller of their own, so this is the counterpart
+# of the Windows installer's uninstall section.  It removes, in order: the
+# login agent, the /etc/paths.d entry, the guarded blocks in /etc/zprofile and
+# /etc/profile, the receipts, and finally the tree itself, datasets included,
+# since they live inside the prefix.
+
+set -eu
+
+prefix=@PREFIX@
+version=@VERSION@
+label=org.geant4.environment
+assume_yes=0
+
+[ "${1:-}" = "--yes" ] && assume_yes=1
+
+if [ "$(id -u)" != "0" ]; then
+    echo "uninstall-geant4.sh: run this with sudo" >&2
+    exit 1
+fi
+
+echo "This will remove:"
+echo "  $prefix  (the installation and its datasets)"
+echo "  /Library/LaunchAgents/$label.plist"
+echo "  /etc/paths.d/geant4"
+echo "  the Geant4 $version block in /etc/zprofile and /etc/profile"
+echo
+
+if [ "$assume_yes" -eq 0 ]; then
+    printf 'Continue? [y/N] '
+    read -r answer
+    case $answer in y|Y|yes|YES) ;; *) echo "Cancelled."; exit 0 ;; esac
+fi
+
+log() { echo "geant4: $*"; }
+
+# Agent first, so nothing re-exports the variables after the tree is gone.
+console_user=$(stat -f '%Su' /dev/console 2>/dev/null || echo "")
+if [ -n "$console_user" ] && [ "$console_user" != "root" ]; then
+    uid=$(id -u "$console_user")
+    launchctl bootout "gui/$uid/$label" 2>/dev/null || true
+    # The variables themselves outlive the agent until logout.
+    if [ -r "$prefix/bin/geant4-datasets.sh" ]; then
+        sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=".*"; export \1$/\1/p' \
+            "$prefix/bin/geant4-datasets.sh" |
+        while read -r name; do
+            launchctl asuser "$uid" launchctl unsetenv "$name" 2>/dev/null || true
+        done
+    fi
+fi
+rm -f "/Library/LaunchAgents/$label.plist"
+log "removed the login agent"
+
+rm -f /etc/paths.d/geant4
+log "removed /etc/paths.d/geant4"
+
+begin="# >>> Geant4 $version >>>"
+end="# <<< Geant4 $version <<<"
+for f in /etc/zprofile /etc/profile; do
+    [ -f "$f" ] || continue
+    grep -qF "$begin" "$f" 2>/dev/null || continue
+    awk -v b="$begin" -v e="$end" '
+        index($0, b) { skip = 1 }
+        !skip { print }
+        index($0, e) { skip = 0 }
+    ' "$f" > "$f.geant4.tmp" && mv "$f.geant4.tmp" "$f"
+    log "cleaned $f"
+done
+
+pkgutil --pkgs | grep '^org\.geant4\.' | while read -r p; do
+    pkgutil --forget "$p" >/dev/null 2>&1 || true
+done
+log "forgot the receipts"
+
+# Last, because this script is inside it.
+rm -rf "$prefix"
+log "removed $prefix"
+
+# And the versioned parent if this was the only version in it.
+parent=$(dirname "$prefix")
+rmdir "$parent" 2>/dev/null && log "removed the empty $parent"
+
+echo "Done."
+exit 0

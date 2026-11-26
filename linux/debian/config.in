@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# Ask which datasets to download.  This is the Linux form of the Windows
+# installer's component page: the same twelve entries, the same seven
+# preselected.
+#
+# It runs before the package is unpacked, which is the whole point of the
+# config script, the question is asked up front rather than halfway through
+# the installation, and apt can pre-answer it from a preseed file:
+#
+#   echo 'geant4 geant4/datasets multiselect G4EMLOW8.8, G4INCL1.3' \
+#     | sudo debconf-set-selections
+
+set -e
+
+. /usr/share/debconf/confmodule
+
+db_input high geant4/datasets || true
+db_go || true
+
+exit 0

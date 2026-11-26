@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>body{font:13px -apple-system,sans-serif;margin:0}h2{font-size:15px;margin:0 0 8px}
+p{margin:0 0 10px}code{font:12px Menlo,monospace}</style>
+</head><body>
+<h2>Geant4 @VERSION@ is installed</h2>
+<p>It is in <code>@PREFIX@</code>, and the datasets that were selected are in
+<code>@PREFIX@/share/Geant4/data</code>.</p>
+<p>Open a <b>new</b> terminal window before using it: the dataset variables are
+set by a line added to <code>/etc/zprofile</code>, which existing windows have
+already read.</p>
+<p>Applications started from the Finder or the Dock get the same variables from
+a login agent, which the installer tried to load into the current session. If
+Strata still reports missing datasets, log out and back in, or load it by hand
+with <code>@PREFIX@/share/Geant4/geant4-setenv-launchd.sh</code>. The installer
+log says which of the two happened.</p>
+<p>If a download failed, the installation is still usable; run
+<code>sudo @PREFIX@/share/Geant4/fetch-datasets.sh</code> to retry just the
+datasets that are missing.</p>
+<p>To remove everything: <code>sudo @PREFIX@/bin/uninstall-geant4.sh</code></p>
+</body></html>

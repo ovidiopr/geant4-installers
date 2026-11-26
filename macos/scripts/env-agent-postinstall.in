@@ -1,0 +1,68 @@
+#!/bin/sh
+#
+# Application environment.
+#
+# A program started from the Finder or the Dock inherits its environment from
+# launchd, not from a shell, so it never sees anything /etc/zprofile exported.
+# That is the case Strata's front end is in, and it is why the Windows
+# installer's EnVar calls -- which write the variables where every process
+# sees them -- have no direct equivalent here.
+#
+# The closest macOS offers is `launchctl setenv`, which adds a variable to the
+# per-user launchd session that GUI applications are started from.  It does not
+# survive a logout, so it is wrapped in a LaunchAgent that re-applies it at
+# every login, and run once now so the current session does not have to wait.
+
+set -eu
+
+volume=${3:-/}
+prefix=${volume%/}@PREFIX@
+agents=${volume%/}/Library/LaunchAgents
+label=org.geant4.environment
+plist=$agents/$label.plist
+setenv=$prefix/share/Geant4/geant4-setenv-launchd.sh
+
+log() { echo "geant4: $*"; }
+
+[ -x "$setenv" ] || { log "$setenv is missing -- agent not installed"; exit 0; }
+
+mkdir -p "$agents"
+cat > "$plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>$label</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$setenv</string>
+        <string>$prefix</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+</dict>
+</plist>
+PLIST
+chmod 644 "$plist"
+log "installed $plist"
+
+# Apply to the session that is running now.  $USER during a package install is
+# root, so the agent has to be loaded into the console user's session rather
+# than root's -- otherwise the variables land where no application will look.
+console_user=$(stat -f '%Su' /dev/console 2>/dev/null || echo "")
+if [ -n "$console_user" ] && [ "$console_user" != "root" ]; then
+    uid=$(id -u "$console_user")
+    launchctl bootout "gui/$uid/$label" 2>/dev/null || true
+    if launchctl bootstrap "gui/$uid" "$plist" 2>/dev/null; then
+        log "loaded for $console_user"
+    else
+        log "could not load the agent now; it will apply at the next login"
+    fi
+else
+    log "no console user; the agent will apply at the next login"
+fi
+
+exit 0

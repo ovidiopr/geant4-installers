@@ -1,0 +1,13 @@
+Geant4 @VERSION@
+
+Geant4 is distributed under the Geant4 Software License, which is reproduced
+in @PREFIX@/share/Geant4/LICENSE in this installation.  See
+https://geant4.web.cern.ch/license/ for the terms.
+
+This Debian package is not produced by the Geant4 Collaboration.  It packages
+a local build so that Geant4 installs and configures the same way on Linux,
+macOS and Windows.  The packaging scripts are part of Strata and carry
+Strata's licence.
+
+The data files the installer downloads are covered by their own terms, stated
+in the README of each dataset.

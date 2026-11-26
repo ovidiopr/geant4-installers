@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# Nothing to stop and nothing to deregister; the only reason this exists is to
+# take the environment out of the way before the files go, so that a shell
+# started during the removal does not source a file that is half gone.
+
+set -e
+
+root=${DPKG_ROOT:-}
+
+case "$1" in
+  remove|deconfigure)
+    rm -f "$root/etc/profile.d/geant4.sh"
+    rm -f "$root/etc/ld.so.conf.d/geant4.conf"
+    if [ -z "$root" ] && command -v ldconfig >/dev/null 2>&1; then
+        ldconfig || true
+    fi
+    ;;
+esac
+
+exit 0

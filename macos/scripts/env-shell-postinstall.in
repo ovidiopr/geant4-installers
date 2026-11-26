@@ -1,0 +1,56 @@
+#!/bin/sh
+#
+# Command-line environment.
+#
+# Two separate things, because macOS splits them:
+#
+#   PATH      /etc/paths.d is the supported mechanism; path_helper reads it
+#             from /etc/zprofile and /etc/profile on every login shell.  It
+#             can only set PATH, which is why the variables need the second
+#             half.
+#
+#   variables path_helper cannot set them, and macOS has no /etc/profile.d.
+#             So a guarded block is appended to /etc/zprofile (zsh, the
+#             default shell) and /etc/profile (bash), sourcing the generated
+#             dataset file.  The markers let the uninstaller take it out
+#             again without disturbing anything else in those files.
+
+set -eu
+
+volume=${3:-/}
+prefix=${volume%/}@PREFIX@
+etc=${volume%/}/etc
+env_file=$prefix/bin/geant4-datasets.sh
+
+log() { echo "geant4: $*"; }
+
+mkdir -p "$etc/paths.d"
+printf '%s\n' "$prefix/bin" > "$etc/paths.d/geant4"
+log "added $prefix/bin to the path via /etc/paths.d/geant4"
+
+begin='# >>> Geant4 @VERSION@ >>>'
+end='# <<< Geant4 @VERSION@ <<<'
+
+for f in "$etc/zprofile" "$etc/profile"; do
+    [ -e "$f" ] || touch "$f"
+
+    # Remove any previous block for this version before adding it, so that
+    # reinstalling does not accumulate copies.
+    if grep -qF "$begin" "$f" 2>/dev/null; then
+        awk -v b="$begin" -v e="$end" '
+            index($0, b) { skip = 1 }
+            !skip { print }
+            index($0, e) { skip = 0 }
+        ' "$f" > "$f.geant4.tmp" && mv "$f.geant4.tmp" "$f"
+    fi
+
+    {
+        echo "$begin"
+        echo "[ -r \"$env_file\" ] && . \"$env_file\""
+        echo "$end"
+    } >> "$f"
+    log "updated $f"
+done
+
+log "open a new terminal, or run '. $env_file', for this to take effect"
+exit 0

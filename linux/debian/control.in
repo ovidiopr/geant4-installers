@@ -1,0 +1,27 @@
+Package: geant4
+Version: @VERSION@-@REVISION@
+Section: science
+Priority: optional
+Architecture: @ARCH@
+Depends: libc6, libstdc++6, libexpat1, zlib1g, ca-certificates, debconf (>= 0.5) | debconf-2.0,
+ libxerces-c3.2t64 | libxerces-c3.2, libgl1, libglu1-mesa, libxmu6,
+ libqt6core6t64 | libqt6core6, libqt6gui6t64 | libqt6gui6, libqt6widgets6t64 | libqt6widgets6,
+ libqt6opengl6t64 | libqt6opengl6, libqt6openglwidgets6t64 | libqt6openglwidgets6
+Recommends: curl | wget
+Maintainer: Ovidio Peña Rodríguez <ovidio@bytesfall.com>
+Homepage: https://geant4.web.cern.ch/
+Description: Toolkit for the simulation of the passage of particles through matter
+ Geant4 is a toolkit for simulating the passage of particles through matter,
+ covering geometry, tracking, the physics of the interactions and the
+ bookkeeping around them.  This package carries the libraries, the headers
+ and the tools of Geant4 @VERSION@, installed under @PREFIX@.
+ .
+ The data files are not in the package.  Installation asks which of them are
+ wanted and downloads them from cern.ch, checking each against the MD5 that
+ geant4-config records.  Seven of the twelve are preselected: those are the
+ ones Geant4 turns into a fatal exception the moment it builds its physics
+ tables, so without them nothing will run.  The rest can be added at any time
+ with @PREFIX@/share/Geant4/fetch-datasets.sh.
+ .
+ This is not the official Geant4 distribution; it is a build with the Qt6
+ user interface, packaged to install the same way on all three platforms.

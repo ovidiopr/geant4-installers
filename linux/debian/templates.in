@@ -1,0 +1,29 @@
+Template: geant4/datasets
+Type: multiselect
+Choices: @CHOICES@
+Default: @DEFAULTS@
+Description: Geant4 data files to download:
+ Geant4 needs data files that are distributed separately, and they are
+ downloaded from cern.ch while this package installs rather than carried
+ inside it.
+ .
+ The seven selected by default are the ones Geant4 treats as fatal when
+ missing: G4EMLOW, PhotonEvaporation, RadioactiveDecay, G4PARTICLEXS,
+ G4ABLA, G4INCL and G4ENSDFSTATE.  Without them nothing will run.  The
+ other five matter only for physics you may never reach -- neutron
+ transport with the _hp lists, PIXE, optical surfaces, the SAID
+ cross-sections and channelling -- and together cost about a gigabyte more.
+ .
+ Selecting none is allowed; the datasets can be added later with
+ @PREFIX@/share/Geant4/fetch-datasets.sh.
+
+Template: geant4/download-failed
+Type: note
+Description: Some Geant4 data files could not be downloaded
+ One or more datasets failed to download or did not match their checksum.
+ Geant4 itself is installed and the other datasets are in place, but the
+ missing ones have to be fetched before the corresponding physics will work.
+ .
+ To retry, once the network allows it:
+ .
+  sudo @PREFIX@/share/Geant4/fetch-datasets.sh
