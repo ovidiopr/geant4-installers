@@ -37,6 +37,21 @@ runs:
         arch: ${{ runner.os == 'Windows' && 'win64_msvc2022_64' || '' }}
         cache: true
 
+    - name: Drop AGL from Qt (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        # The macOS 26 SDK has no AGL framework, but Qt 6.8's FindWrapOpenGL.cmake
+        # links it into everything that uses QtGui (QTBUG-137687).  Nothing uses
+        # AGL; Qt 6.9.2 deleted this same line.
+        f="$QT_ROOT_DIR/lib/cmake/Qt6/FindWrapOpenGL.cmake"
+        if [ -f "$f" ]; then
+          sed -i '' '/INTERFACE \${__opengl_agl_fw_path}/d' "$f"
+          if grep -qF 'INTERFACE ${__opengl_agl_fw_path}' "$f"; then
+            echo "AGL is still linked by $f" >&2; exit 1
+          fi
+        fi
+
     - name: Install build dependencies (Linux)
       if: runner.os == 'Linux'
       shell: bash
@@ -54,7 +69,7 @@ runs:
 
     - name: Restore Geant4 from cache
       id: cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ steps.paths.outputs.root }}
         key: geant4-${{ inputs.version }}-qt${{ inputs.qt-version }}-${{ runner.os }}-${{ runner.arch }}-v2
